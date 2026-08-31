@@ -1,0 +1,15 @@
+# MCP Security Proxy — Phase 1 config
+#
+# agent_id identifies which agent/identity is calling through this proxy
+# instance. Run one proxy process (and one config) per agent<->downstream-server
+# pairing you want logged separately.
+
+agent_id: dev-test-agent
+
+downstream:
+  command: python3
+  args:
+    - -m
+    - proxy.mock_downstream_server
+
+log_path: logs/calls.jsonl

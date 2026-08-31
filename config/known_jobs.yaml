@@ -1,0 +1,49 @@
+# MCP Security Proxy — Phase 3 known-jobs suppression config
+#
+# Lists known-legitimate recurring patterns so the detector doesn't have to
+# re-flag them every run. This is NOT a general false-positive-tuning knob —
+# each entry documents one specific, already-understood business process
+# (per PROJECT_SPEC.md Phase 3). Anything that doesn't match an entry's full
+# criteria (agent, tool, hour window, AND payload range) is left completely
+# alone and flows through detector.py's normal tiering untouched.
+#
+# Matching is per-signal: an entry only suppresses the signal types listed
+# in its `suppresses` list, and only for calls landing inside ALL of its
+# match criteria. A call that matches on agent/tool/hours but falls outside
+# the payload range (e.g. a "backup" call that's 10x the usual backup size)
+# is intentionally NOT suppressed — that's exactly the kind of drift a human
+# should see.
+#
+# Fields:
+#   name          unique human-readable id, shown in suppressed-signal output
+#   description   why this pattern is expected (for the human reading output)
+#   agent_id      must match exactly
+#   tool_name     must match exactly
+#   hours         {start, end} hour-of-day range, inclusive, 24h UTC.
+#                 Wraps past midnight if start > end (e.g. 22-3).
+#   payload_size  {min, max} byte range, inclusive
+#   suppresses    which of NEW_TOOL / OFF_PATTERN / PAYLOAD_OUTLIER /
+#                 SEQUENCE_SPIKE this job explains and should suppress
+
+jobs:
+  - name: nightly-config-backup
+    description: >
+      dev-test-agent reads a large config/backup file once a night outside
+      normal working hours. Legitimately triggers OFF_PATTERN (unusual hour)
+      and PAYLOAD_OUTLIER (much bigger than its typical call) every time.
+    agent_id: dev-test-agent
+    tool_name: read_file
+    hours: {start: 1, end: 3}
+    payload_size: {min: 5000, max: 50000}
+    suppresses: [OFF_PATTERN, PAYLOAD_OUTLIER]
+
+  - name: healthcheck-tool-rollout
+    description: >
+      get_time was rolled out to dev-test-agent as a periodic health-check
+      call. Expect a one-time NEW_TOOL signal the first time it's used that
+      doesn't indicate anything anomalous.
+    agent_id: dev-test-agent
+    tool_name: get_time
+    hours: {start: 0, end: 23}
+    payload_size: {min: 0, max: 1000}
+    suppresses: [NEW_TOOL]

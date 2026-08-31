@@ -1,0 +1,17 @@
+# MCP Security Proxy — Phase 4 lab scope allowlist
+#
+# HARD SAFETY BOUNDARY. This is the ONLY list of targets the red-team engine
+# is permitted to act against. Every technique execution - mock or, later,
+# live Caldera - is checked against this file by red/scope.py before
+# anything runs, and a target not listed here is refused, no exceptions.
+#
+# Exact matches only: no CIDR ranges, no wildcards. A typo in a /24 could
+# silently put someone else's machine in scope, so every host must be
+# listed explicitly, one line at a time, by someone who knows it's a
+# disposable lab VM they own.
+#
+# Only put IPs/hostnames of machines YOU own and control. Never a
+# production system, a shared machine, or anything not entirely yours.
+
+targets:
+  - 192.168.109.133
