@@ -215,18 +215,28 @@ itself:
   legitimate-looking calls before acting). The z-score/count-based signals here
   are not adversarially hardened.
 
-- **Phase 7's `tools_jsd` drift threshold (0.15) is an unvalidated placeholder.**
-  `detector/drift.py`'s other three BASELINE_DRIFT thresholds have some basis: the
-  payload/fanout z-score thresholds (2.0) are consistent with `detector.py`'s
-  existing calibration, and `hours_jsd` (0.4) was empirically derived by measuring
-  the real noise floor two stable training weeks produce (~0.286) and setting the
-  threshold with margin above it. `tools_jsd` got none of that — the synthetic
-  verification test (`detector/test_drift_synthetic.py`) only varies one agent's
-  active hours and payload size over time, calling a single tool throughout, so
-  it never exercises a shifting tool-usage mix at all. 0.15 is a guess at "a real
-  composition shift should clear this, ordinary noise shouldn't," not a measured
-  value. It needs its own calibration test — one that actually varies an agent's
-  tool-usage mix over time — before it should be trusted.
+- **Phase 7's `tools_jsd` drift threshold (0.15) is now calibrated, not guessed.**
+  `detector/test_tools_drift_synthetic.py` adds the test the other three
+  thresholds already had: a synthetic agent whose read_file/list_dir usage mix
+  drifts from ~95%/5% to a near-total reversal (~7%/93%) over four weeks, while
+  staying inside known tools (no `NEW_TOOL`), a fixed hour set (no `OFF_PATTERN`),
+  and a tool-independent payload distribution (no `PAYLOAD_OUTLIER`, and no
+  payload/fan-out/hours contribution to `BASELINE_DRIFT` — the mix shift is
+  isolated on purpose). A stable-weeks sanity check (two training weeks, both
+  ~95/5 with ordinary day-to-day noise) measures the real `tools_jsd` noise floor
+  at **~0.001** — roughly 150x below the 0.15 threshold, a much wider margin than
+  `hours_jsd` has (0.4 vs. a measured floor of ~0.286, ~1.4x), because a skewed
+  2-tool mix is inherently far less noisy week-to-week than a 24-bucket
+  hour-of-day histogram. Confirmed 0.15 as-is rather than lowering it: it stays
+  silent through the early, still-ambiguous part of the drift (68.7%/31.3% mix →
+  `tools_jsd`=0.094) and fires once the composition has genuinely inverted past
+  its midpoint (49.7%/50.3% → 0.211), rising monotonically to 0.682 at full
+  reversal — the two failure modes (false-positiving on ordinary variation,
+  missing a real composition change) both check out for this scenario. Caveat:
+  the measured floor is specific to a skewed two-tool baseline like the one
+  tested; an agent with a more balanced multi-tool mix (e.g. three tools each
+  used ~30–40% of the time) hasn't been measured and could plausibly have a
+  higher natural noise floor — that generalization remains untested.
 
 - Other explicit non-goals carried over from `PROJECT_SPEC.md`: no
   least-privilege/access-control enforcement (`trigger/containment.py` only ever
