@@ -55,6 +55,31 @@ logs results using the Phase 1 audit schema (trace ID, reasoning, replayable).
 No daemon — triggered by CLI command or cron schedule, not always-on. Telegram bot posts:
 run started, technique attempted, detected/missed, containment action taken, run summary.
 
+## Phase 7 — Baseline drift detection (closes the "slow evasion" gap)
+Addresses the honestly-documented limitation that per-call detection can't catch an
+attacker who stays inside known tools/hours/payload ranges while slowly drifting an
+agent's baseline over time (e.g. via gradual memory/config/prompt manipulation).
+
+- detector/drift.py: periodically snapshots each agent's baseline (reuse
+  detector/baseline.py's stats), and compares the current snapshot to a prior one
+  (e.g. this week vs last week) using a distributional distance measure appropriate
+  for the stats involved (e.g. comparing means/stdevs, or a simple KL-divergence-style
+  comparison for the known_tools set changing composition over time).
+- New signal: BASELINE_DRIFT — fires when an agent's baseline itself has shifted
+  beyond a configurable threshold between two snapshots, independent of whether any
+  single call was flagged. This is a meta-signal about the baseline, not about one call.
+- Snapshots are stored in a new hash-chained log (logs/baseline_snapshots.jsonl,
+  same tamper-evident pattern as everything else) so drift can be verified/replayed,
+  not just computed once and discarded.
+- Explicit non-goal: this does NOT detect file-level tampering of any actual
+  agent config/memory files (that would require visibility into agent internals this
+  proxy doesn't have) — it only detects drift as reflected in observable tool-call
+  behavior over time. State this limitation openly, same as the others.
+- Verification approach: synthetic test where an agent's calls slowly shift over many
+  days (e.g. active hours creeping later, payload sizes creeping up) while staying
+  within each individual call's normal-looking range — confirm BASELINE_DRIFT fires
+  even though the Phase 2 per-call detector alone would stay silent throughout.
+
 ## Explicit non-goals / known limits (be honest about these, don't overclaim)
 - Does NOT solve general business-logic vulnerability judgment — novel cross-system logic
   flaws remain a human-review problem, this project only handles known documented patterns

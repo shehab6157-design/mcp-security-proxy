@@ -215,6 +215,19 @@ itself:
   legitimate-looking calls before acting). The z-score/count-based signals here
   are not adversarially hardened.
 
+- **Phase 7's `tools_jsd` drift threshold (0.15) is an unvalidated placeholder.**
+  `detector/drift.py`'s other three BASELINE_DRIFT thresholds have some basis: the
+  payload/fanout z-score thresholds (2.0) are consistent with `detector.py`'s
+  existing calibration, and `hours_jsd` (0.4) was empirically derived by measuring
+  the real noise floor two stable training weeks produce (~0.286) and setting the
+  threshold with margin above it. `tools_jsd` got none of that — the synthetic
+  verification test (`detector/test_drift_synthetic.py`) only varies one agent's
+  active hours and payload size over time, calling a single tool throughout, so
+  it never exercises a shifting tool-usage mix at all. 0.15 is a guess at "a real
+  composition shift should clear this, ordinary noise shouldn't," not a measured
+  value. It needs its own calibration test — one that actually varies an agent's
+  tool-usage mix over time — before it should be trusted.
+
 - Other explicit non-goals carried over from `PROJECT_SPEC.md`: no
   least-privilege/access-control enforcement (`trigger/containment.py` only ever
   produces a human-facing recommendation, never a real action), and this isn't
