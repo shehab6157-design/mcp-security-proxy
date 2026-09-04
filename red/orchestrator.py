@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import random
 
-from red.executor import Executor, MockExecutor
+from red.executor import CalderaExecutor, Executor, MockExecutor
 from red.run_log import HashChainRunLog
 from red.scope import SCOPE_PATH, OutOfScopeError, load_scope
 from red.techniques import CATALOG
@@ -69,6 +69,18 @@ def main():
     parser.add_argument(
         "--log-path", default=RUN_LOG_PATH, help=f"path to the red-team run log (default: {RUN_LOG_PATH})"
     )
+    parser.add_argument(
+        "--executor",
+        choices=["mock", "caldera"],
+        default="mock",
+        help="'mock' (default) reports what it would run with no real action; "
+        "'caldera' launches real operations against a live Caldera server - opt in explicitly",
+    )
+    parser.add_argument(
+        "--caldera-group",
+        default="red",
+        help="Caldera agent group to target when --executor=caldera (default: red)",
+    )
     args = parser.parse_args()
 
     scope = load_scope(args.scope)
@@ -77,7 +89,10 @@ def main():
         print("Scope is empty - refusing to run. Add at least one self-owned lab VM to the scope file.")
         return
 
-    executor = MockExecutor(scope_path=args.scope)
+    if args.executor == "caldera":
+        executor: Executor = CalderaExecutor(scope_path=args.scope, group=args.caldera_group)
+    else:
+        executor = MockExecutor(scope_path=args.scope)
     run_log = HashChainRunLog(args.log_path)
 
     results = run(executor, scope, args.runs, run_log)

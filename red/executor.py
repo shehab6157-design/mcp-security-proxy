@@ -18,9 +18,11 @@ reach real execution without passing through it first.
 
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from red.caldera_client import CalderaClient, CalderaError
 from red.scope import SCOPE_PATH, assert_in_scope, load_scope
 
 
@@ -65,4 +67,73 @@ class MockExecutor(Executor):
             target=target,
             status="simulated",
             detail=f"[mock] would run {technique_id} ({technique_name}) against {target} - no real action taken",
+        )
+
+
+class CalderaExecutor(Executor):
+    """Launches real MITRE Caldera operations - Discovery adversary, atomic
+    planner - against agents in the lab scope.
+
+    Every target this class ever sees has already passed
+    Executor.run_technique()'s assert_in_scope() gate; this class never
+    reads the scope file itself, it only forwards an already-verified
+    target on to Caldera in the log line.
+
+    Caldera doesn't target an individual host per operation - an operation
+    runs against a whole agent GROUP. This lab's scope file
+    (config/lab_scope.yaml) lists exactly one host, and exactly one Caldera
+    agent (group "red") runs on it, so one fixed group is enough here. If
+    the scope file ever grows a second host on a different agent, this
+    needs a real target->group lookup, not the single `group` constructor
+    argument below - be honest about that limit rather than pretending a
+    single group generalizes.
+
+    Each call runs the Discovery adversary's whole ability bundle via
+    Caldera's own atomic planner, not the one technique_id/name the
+    orchestrator picked from red/techniques.py's catalog - Caldera decides
+    the next ability by OS/fact-availability, not by an ATT&CK id we hand
+    it. The picked technique is carried through only for the run log.
+    """
+
+    name = "caldera"
+
+    ATOMIC_PLANNER_ID = "aaa7c857-37a0-4c4a-85f7-4e9f7f30e31a"
+    DISCOVERY_ADVERSARY_ID = "0f4c3c67-845e-49a0-927e-90ed33c044e0"
+    BASIC_SOURCE_ID = "ed32b9c3-9593-4c33-b0db-e2007315096b"
+
+    def __init__(self, scope_path: str = SCOPE_PATH, group: str = "red", client: CalderaClient | None = None):
+        super().__init__(scope_path)
+        self.group = group
+        self.client = client or CalderaClient()
+
+    def _execute(self, technique_id: str, technique_name: str, target: str) -> ExecutionResult:
+        op_name = f"mcp-sec-proxy-{technique_id}-{uuid.uuid4().hex[:8]}"
+        try:
+            op = self.client.create_operation(
+                name=op_name,
+                adversary_id=self.DISCOVERY_ADVERSARY_ID,
+                planner_id=self.ATOMIC_PLANNER_ID,
+                source_id=self.BASIC_SOURCE_ID,
+                group=self.group,
+            )
+        except CalderaError as e:
+            return ExecutionResult(
+                technique_id=technique_id,
+                technique_name=technique_name,
+                target=target,
+                status="failed",
+                detail=f"[caldera] failed to launch operation against {target} (group={self.group!r}): {e}",
+            )
+
+        op_id = op.get("id", "unknown")
+        return ExecutionResult(
+            technique_id=technique_id,
+            technique_name=technique_name,
+            target=target,
+            status="success",
+            detail=(
+                f"[caldera] launched operation {op_id} ({op_name!r}): Discovery adversary via atomic "
+                f"planner against group {self.group!r} ({target}); plan pick {technique_id} "
+                f"({technique_name}) triggered this run, Caldera's own ability set now drives it"
+            ),
         )
