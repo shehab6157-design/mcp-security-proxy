@@ -68,8 +68,8 @@ logs/calls.jsonl  (proxy/audit_log.py — append-only, tamper-evident)
 │ picks technique +  │◀──────▶│  .yaml (hard        │
 │ target, runs it via│        │  allowlist, fail-   │
 │ red/executor        │        │  closed, exact-     │
-│ (MockExecutor —     │        │  match only)         │
-│ no live Caldera yet)│        └───────────────────┘
+│ (Mock, or Caldera   │        │  match only)         │
+│ via --executor)     │        └───────────────────┘
 └───────────────────┘
        │ injects the result as an MCP call under an
        │ EXISTING baselined agent identity
@@ -181,13 +181,18 @@ pipeline runs the same either way. For scheduled runs, add a cron entry, e.g.:
 Being upfront about where this project currently overstates or hasn't yet proven
 itself:
 
-- **Mock executor only — no live Caldera integration yet.** `red/executor.py`
-  defines a scope-gated `Executor` interface specifically so a real MITRE Caldera
-  (or similar) executor can be dropped in behind it later, but the only executor
-  that exists today is `MockExecutor`, which never touches the network — it just
-  reports what it *would* have run. The scope-enforcement design (fail-closed
-  allowlist, exact-match only, re-checked independently by the executor) is built
-  and tested, but it has only ever gated a simulated action, not a real one.
+- **Live Caldera integration exists, but mock is still the default.**
+  `red/executor.py` now includes `CalderaExecutor` alongside `MockExecutor`,
+  launching real MITRE Caldera operations (Discovery adversary, atomic planner)
+  against a deployed agent — `red/orchestrator.py --executor caldera` opts in
+  (`MockExecutor` runs by default). This has been verified end-to-end: a real
+  operation against a real deployed agent, with actual `whoami`/`passwd` output
+  captured back through the same scope-gated path as the mock. The known
+  constraint, flagged directly in `CalderaExecutor`'s docstring: Caldera targets
+  an agent *group*, not an individual host, and this lab's scope
+  (`config/lab_scope.yaml`) has exactly one host mapped to one fixed group — if
+  the scope ever grows a second host on a different agent, `CalderaExecutor`
+  needs a real target→group lookup, which doesn't exist yet.
 
 - **`target_resource` and `reasoning_summary` are best-effort heuristics, not
   ground truth.** MCP tool-call arguments are arbitrary JSON with no first-class
