@@ -19,10 +19,12 @@ payload far outside its normal size, or with a burst of distinct tools in one
 window looks a lot like lateral movement looks on a network — so the same detection
 approach generalizes to it.
 
-It's built on top of a prior project, `lateral-movement-detector`, which validated
-this baselining approach on real captured network traffic (per-device peer/hours/
-volume/fan-out baselines, 4 signal types, 5/5 detection on a simulated SSH-flood
-attack with 0 false positives). This project ports that same detector logic
+It's built on top of a prior project, [`lateral-movement-detector`](https://github.com/shehab6157-design/lateral-movement-detector),
+which tested this baselining approach (per-device peer/hours/volume/fan-out baselines,
+4 signal types) and flagged 5/5 attack flows with 0 false positives on synthetic traffic
+with a simulated lateral-movement attack, plus first real captures between lab VMs.
+That project later grew into [APIS](https://github.com/shehab6157-design/apis-lateral-movement-detector),
+tested on the public LANL dataset. This project ports the same detector logic
 (`baseline.py` / `detector.py`) onto a new data source — an MCP call log instead of
 a traffic capture — rather than starting the detection approach from scratch.
 
